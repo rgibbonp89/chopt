@@ -11,4 +11,7 @@ http://adv-r.had.co.nz/C-interface.html
 http://www.csse.uwa.edu.au/programming/gsl-1.0/gsl-ref_11.html
 
 Compiling
-R CMD SHLIB <jsij>.c  -I/usr/local/lib/ -lgsl -lgslcblas
+R CMD SHLIB <jsij>.c  -L/usr/local/lib/ -lgsl -lgslcblas
+
+An absolute life saver when it comes to MVN density estimation
+https://accserv.lepp.cornell.edu/svn/packages/gsl/randist/test.c

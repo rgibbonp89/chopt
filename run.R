@@ -1,4 +1,4 @@
-dyn.load("gaussian_process.so")
+dyn.load("./exe/gaussian_process.so")
 x = rnorm(10, -3, 1)
 l = length(x)
 out_o <- .C("run", n=as.integer(l), x=x)
