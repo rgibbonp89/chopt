@@ -60,7 +60,11 @@ int kernel(int *row, int *col, double *input_matrix, double *results_vector)
 
     // vcov matrix and set to identity
     gsl_matrix * vcov_matrix = gsl_matrix_calloc(nc, nc);
+    gsl_matrix_set_all(vcov_matrix, 1);
     gsl_matrix_set_identity(vcov_matrix);
+    FILE * f = fopen("test.dat", "wb");
+    gsl_matrix_fwrite(f, vcov_matrix);
+    fclose(f);
 
     // cholesky factor L of vcov
     gsl_linalg_cholesky_decomp1(vcov_matrix);
@@ -74,12 +78,13 @@ int kernel(int *row, int *col, double *input_matrix, double *results_vector)
     gsl_matrix * m = gsl_matrix_alloc(nr, nc);
 
     for (i=0;i<nr;i++)
-    {
         for (j=0;j<nc;j++)
         {
              gsl_matrix_set(m, i, j, input_matrix[counter++]);
         }
-    }
+    FILE * x = fopen("mat.dat", "wb");
+    gsl_matrix_fwrite(x, m);
+    fclose(x);
 
     // Now calculate density
     for(k=0;k<nr;k++)
