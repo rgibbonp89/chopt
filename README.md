@@ -1,4 +1,4 @@
-GP here
+GP here\n
 http://krasserm.github.io/2018/03/19/gaussian-processes/\n
 Better here\n
 https://katbailey.github.io/post/gaussian-processes-for-dummies/\n
@@ -16,4 +16,7 @@ R CMD SHLIB <jsij>.c  -L/usr/local/lib/ -lgsl -lgslcblas\n
 An absolute life saver when it comes to MVN density estimation\n
 https://accserv.lepp.cornell.edu/svn/packages/gsl/randist/test.c\n
 
-Next I need to go from MVN -> RBF
+Next I need to go from MVN -> RBF\n
+http://krasserm.github.io/2018/03/19/gaussian-processes/\n
+https://katbailey.github.io/post/gaussian-processes-for-dummies/\n
+https://www.gnu.org/software/gsl/doc/html/blas.html?highlight=dot%20product\n
