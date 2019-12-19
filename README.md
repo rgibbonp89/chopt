@@ -15,3 +15,5 @@ R CMD SHLIB <jsij>.c  -L/usr/local/lib/ -lgsl -lgslcblas\n
 
 An absolute life saver when it comes to MVN density estimation\n
 https://accserv.lepp.cornell.edu/svn/packages/gsl/randist/test.c\n
+
+Next I need to go from MVN -> RBF
