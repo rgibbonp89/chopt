@@ -1,27 +1,35 @@
 # for matrix stuff
 
 library('MASS')
-library('emdbook')
+library('pracma')
 
 dyn.load("kernel.so")
-nr = 20
+nrx = 20
+nry = 10
 nc = 5
-vec = rep(0, nr)
-samples = mvrnorm(nr, c(rep(0, nc)), diag(nc))
-mat = samples
+mat_x = mvrnorm(nrx, c(rep(0, nc)), diag(nc))
+mat_y = mvrnorm(nry, c(rep(0, nc)), diag(nc))
 
-mat = c(0,0, 1, 2)
 
-f <- function(r, c, v, m){
-    if(length(m) > 1){
-    m <- c(t(m))
+f <- function(mx, my){
+    xr = nrow(mx)
+    yr = nrow(my)
+    c = ncol(mx)
+    if(length(mx) > 1){
+    mx <- c(t(mx))
     }
-    .C("kernel", row=as.integer(r), column=as.integer(c), mat=m, vec=v)
+    if(length(my) > 1){
+    my <- c(t(my))
+    }
+    rv = rep(0, xr*yr) 
+    out = .C("rbf_kernel", xrow=as.integer(xr), yrow=as.integer(yr), 
+    column=as.integer(c), mat_x=mx, mat_y=my, mat_res=rv)
+    output = out$mat_res
+    output_mat = matrix(output, nrow = xr, ncol = yr, byrow = T)
+    return(output_mat)
     }
 
-out = f(nr, nc, vec, mat)
-
-
+out = f(mat_x, mat_y)
 
 
 

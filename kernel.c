@@ -3,7 +3,7 @@
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_linalg.h>
-
+#include <gsl/gsl_blas.h>
 
 /*
 @row = count of the number of rows of the input matrix
@@ -12,40 +12,43 @@
 @results_vector = vector of zeros that the function will write to and that will be output
 */
 
-int mvn_density(int *row, int *col, double *input_matrix_x,
-double *input_matrix_y, double *results_vector)
+int rbf_kernel(int *xrow, int *yrow, int *col, double *input_matrix_x,
+double *input_matrix_y, double *results_matrix)
 {
     // Number of elements of mu is length(nc) and vcov is nc*nc
-    size_t nr = row[0];
+    size_t nrx = xrow[0];
+    size_t nry = yrow[0];
     size_t nc = col[0];
     int i, j, k;
-    int counter = 0;
-
-    // Vector of results - gsl vector to store pdf output that will then be written to results_vector
-    gsl_vector * res_holder = gsl_vector_alloc(nr);
-
+    int counterx = 0;
+    int countery = 0;
+    int counterout = 0;
 
     // Convert passed r matrix to gsl matrix
     // Loops to assign values to the allocated matrix
-    gsl_matrix * x = gsl_matrix_alloc(nr, nc);
-    gsl_matrix * y = gsl_matrix_alloc(nr, nc);
+    gsl_matrix * x = gsl_matrix_alloc(nrx, nc);
+    gsl_matrix * y = gsl_matrix_alloc(nry, nc);
+    gsl_matrix * output_matrix = gsl_matrix_alloc(nrx, nry);
 
-    for (i=0;i<nr;i++)
+    for (i=0;i<nrx;i++)
         for (j=0;j<nc;j++)
         {
-             gsl_matrix_set(x, i, j, input_matrix_x[counter]);
-             gsl_matrix_set(y, i, j, input_matrix_y[counter++]);
+             gsl_matrix_set(x, i, j, input_matrix_x[counterx++]);
         }
 
-    // Now rbf distance
-    for(k=0;k<nr;k++)
-    {
-        // Vector of work (length ncol)
-        gsl_vector * work_mvn = gsl_vector_calloc(nc);
-        double result_tmp;
-        gsl_vector_view row_tmp = gsl_matrix_row(m, k);
-        gsl_ran_multivariate_gaussian_pdf (&row_tmp.vector, mu_vector, vcov_matrix, &result_tmp, work_mvn);
-        results_vector[k] = result_tmp;
-    }
+    for (i=0;i<nry;i++)
+        for (j=0;j<nc;j++)
+        {
+             gsl_matrix_set(y, i, j, input_matrix_y[countery++]);
+        }
 
+    gsl_blas_dgemm (CblasNoTrans, CblasTrans,
+                  1.0, x, y,
+                  0.0, output_matrix);
+
+    for(i=0;i<nrx;i++)
+        for(j=0;j<nry;j++)
+        {
+        results_matrix[counterout++] = gsl_matrix_get(output_matrix, i, j);
+        }
 }
