@@ -6,10 +6,12 @@
 #include <gsl/gsl_blas.h>
 
 /*
-@row = count of the number of rows of the input matrix
-@col = count of the number of columns of the inout matrix
-@input_matrix = input_matrix of type double
-@results_vector = vector of zeros that the function will write to and that will be output
+@xrow = count of the number of rows of the input matrix x
+@yrow = count of the number of rows of the input matrix y
+@col = count of the number of columns of the inout matrices
+@input_matrix_x = input_matrix of type double
+@input_matrix_y = input_matrix of type double
+@results_matrix = vector of zeros that the function will write to and that will be output
 */
 
 int rbf_kernel(int *xrow, int *yrow, int *col, double *input_matrix_x,

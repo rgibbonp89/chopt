@@ -29,8 +29,15 @@ f <- function(mx, my){
     return(output_mat)
     }
 
+start_time <- Sys.time()
 out = f(mat_x, mat_y)
+end_time <- Sys.time()
+end_time - start_time
 
+start_time <- Sys.time()
+test <- mat_x%*%t(mat_y)
+end_time <- Sys.time()
+end_time - start_time
 
 
 
