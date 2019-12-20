@@ -4,9 +4,9 @@ library('MASS')
 library('pracma')
 
 dyn.load("kernel.so")
-nrx = 20
-nry = 10
-nc = 5
+nrx = 2e4
+nry = 3e3
+nc = 3e2
 mat_x = mvrnorm(nrx, c(rep(0, nc)), diag(nc))
 mat_y = mvrnorm(nry, c(rep(0, nc)), diag(nc))
 

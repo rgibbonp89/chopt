@@ -42,10 +42,12 @@ double *input_matrix_y, double *results_matrix)
              gsl_matrix_set(y, i, j, input_matrix_y[countery++]);
         }
 
+    // Perform matrix multiplication and assign to output_matrix
     gsl_blas_dgemm (CblasNoTrans, CblasTrans,
                   1.0, x, y,
                   0.0, output_matrix);
 
+    // Finally, assign to results_matrix for use in R
     for(i=0;i<nrx;i++)
         for(j=0;j<nry;j++)
         {
