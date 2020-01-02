@@ -25,7 +25,6 @@ double *input_matrix_y, double *results_matrix, double *product_matrix, double *
     int i, j, k;
     int counterx = 0;
     int countery = 0;
-    int counterout = 0;
     double param = param_in[0];
 
     // Convert passed r matrix to gsl matrix
@@ -39,14 +38,11 @@ double *input_matrix_y, double *results_matrix, double *product_matrix, double *
     // Need to assign values to matrices and calcuilate euclidean norm for each row
     // This happens for x and y matrix
     for (i=0;i<nrx;i++)
+        {
         for (j=0;j<nc;j++)
             {
              gsl_matrix_set(x, i, j, input_matrix_x[counterx++]);
             }
-
-    // For each row in turn, we extract it and then calculate \sum x_i{i}^{2}
-    for (i=0;i<nrx;i++)
-        {
         gsl_vector * tmp_x_vec = gsl_vector_alloc(nc);
         gsl_matrix_get_row(tmp_x_vec, x, i);
         double euclideanx = gsl_blas_dnrm2(tmp_x_vec)*gsl_blas_dnrm2(tmp_x_vec);
@@ -54,13 +50,11 @@ double *input_matrix_y, double *results_matrix, double *product_matrix, double *
         }
 
     for (i=0;i<nry;i++)
+        {
         for (j=0;j<nc;j++)
             {
              gsl_matrix_set(y, i, j, input_matrix_y[countery++]);
             }
-
-    for (i=0;i<nry;i++)
-        {
         gsl_vector * tmp_y_vec = gsl_vector_alloc(nc);
         gsl_matrix_get_row(tmp_y_vec, y, i);
         double euclideany = gsl_blas_dnrm2(tmp_y_vec)*gsl_blas_dnrm2(tmp_y_vec);
@@ -85,16 +79,12 @@ double *input_matrix_y, double *results_matrix, double *product_matrix, double *
     gsl_matrix_scale(output_matrix, scaler);
 
     // Finally, assign to results_matrix for use in R
-    for(i=0;i<nrx;i++)
-        for(j=0;j<nry;j++)
-        {
-        results_matrix[counterout++] = gsl_matrix_get(output_matrix, i, j);
-        }
-
+    int counterout = 0;
     int counteroutm = 0;
     for(i=0;i<nrx;i++)
         for(j=0;j<nry;j++)
         {
+        results_matrix[counterout++] = gsl_matrix_get(output_matrix, i, j);
         product_matrix[counteroutm++] = gsl_matrix_get(xycombine, i, j);
         }
 

@@ -3,11 +3,13 @@
 library('MASS')
 library('pracma')
 
-dyn.load("kernel.so")
-nrx = 20
-nry = 10 
+dyn.load("kernel_ref.so")
+nrx = 10
+nry = 20 
 nc = 5
+set.seed(10)
 mat_x = mvrnorm(nrx, c(rep(0, nc)), diag(nc))
+set.seed(10)
 mat_y = mvrnorm(nry, c(rep(0, nc)), diag(nc))
 
 
