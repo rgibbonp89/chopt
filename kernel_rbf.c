@@ -17,6 +17,7 @@ int run(double *param_in, int *xrow, int *yrow, int *col,
                input_matrix_x, matmul_matrix_train, product_matrix_train,
                kernel_matrix_train, L_outmatrix_train);
     L_calc(xrow, xrow, kernel_matrix_train, L_outmatrix_train);
+    // mu requires Ax=b calculation - read GSL documentation for this
 }
 
 
