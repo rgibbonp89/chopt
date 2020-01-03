@@ -9,49 +9,73 @@
 
 int run(double *param_in, int *xrow, int *yrow, int *col,
         double *input_matrix_x, double *input_matrix_y,
-        double *matmul_matrix_train, double *product_matrix_train,
-        double *kernel_matrix_train, double *L_outmatrix_train)
+        double *matmul_matrix_train,
+        double *product_matrix_train,
+        double *kernel_matrix_train,
+        double *matmul_matrix_traintest,
+        double *product_matrix_traintest,
+        double *kernel_matrix_traintest,
+        double *matmul_matrix_test,
+        double *product_matrix_test,
+        double *kernel_matrix_test
+        )
 {
+    size_t xr = xrow[0];
+    size_t yr = yrow[0];
+    gsl_matrix * Ktrain = gsl_matrix_calloc(xr, xr);
+    gsl_matrix * Ktraintest = gsl_matrix_calloc(xr, yr);
+    gsl_matrix * Ktest = gsl_matrix_calloc(yr, yr);
+
     // Pass pointers themselves as arguments to rbf_kernel()
     rbf_kernel(param_in, xrow, xrow, col, input_matrix_x,
                input_matrix_x, matmul_matrix_train, product_matrix_train,
-               kernel_matrix_train, L_outmatrix_train);
-    L_calc(xrow, xrow, kernel_matrix_train, L_outmatrix_train);
-    // mu requires Ax=b calculation - read GSL documentation for this
+               kernel_matrix_train);
+    rbf_kernel(param_in, xrow, yrow, col, input_matrix_x,
+               input_matrix_y, matmul_matrix_traintest, product_matrix_traintest,
+               kernel_matrix_traintest);
+    rbf_kernel(param_in, yrow, yrow, col, input_matrix_y,
+               input_matrix_y, matmul_matrix_test, product_matrix_test,
+               kernel_matrix_test);
+
+    // Assign to matrices
+    matrix_assign_GSL(xrow, xrow, kernel_matrix_train, Ktrain);
+    matrix_assign_GSL(xrow, yrow, kernel_matrix_traintest, Ktraintest);
+    matrix_assign_GSL(yrow, yrow, kernel_matrix_test, Ktest);
+
+
+    // http://krasserm.github.io/2018/03/19/gaussian-processes/
+    /*
+
+    K = kernel(X_train, X_train, l, sigma_f) + sigma_y**2 * np.eye(len(X_train))
+    K_s = kernel(X_train, X_s, l, sigma_f)
+    K_ss = kernel(X_s, X_s, l, sigma_f) + 1e-8 * np.eye(len(X_s))
+    K_inv = inv(K)
+
+    # Equation (4)
+    mu_s = K_s.T.dot(K_inv).dot(Y_train)
+
+    # Equation (5)
+    cov_s = K_ss - K_s.T.dot(K_inv).dot(K_s)
+
+    */
 }
 
-
-/*
-
-Calculate Cholesky decomposition and convert back to vector (rather than GSL matrix)
-
-*/
-
-int L_calc(int *xrow, int *yrow,
-           double *L_input_matrix, double *L_output_matrix)
+int matrix_assign_GSL(int *xrow, int *yrow,
+           double *K_input_matrix, gsl_matrix *write_matrix)
 {
 
     size_t nrx = xrow[0];
     size_t nry = yrow[0];
     int i, j;
     int counterin = 0;
-    int counterout = 0;
-    gsl_matrix *kernel_calc = gsl_matrix_alloc(nrx, nry);
 
     for (i=0;i<nrx;i++)
         for (j=0;j<nry;j++)
             {
-             gsl_matrix_set(kernel_calc, i, j, L_input_matrix[counterin++]);
+             gsl_matrix_set(write_matrix, i, j, K_input_matrix[counterin++]);
             }
-
-    gsl_linalg_cholesky_decomp1(kernel_calc);
-
-    for (i=0;i<nrx;i++)
-        for (j=0;j<nry;j++)
-        {
-        L_output_matrix[counterout++] = gsl_matrix_get(kernel_calc, i, j);
-        }
 }
+
 
 /*
 @xrow = count of the number of rows of the input matrix x
