@@ -3,7 +3,7 @@
 library('MASS')
 library('pracma')
 
-dyn.load("kernel_ref.so")
+dyn.load("kernel_rbf.so")
 nrx = 10
 nry = 20 
 nc = 5
@@ -23,12 +23,17 @@ f <- function(mx, my, param){
     if(length(my) > 1){
     my <- c(t(my))
     }
-    rv = rep(0, xr*yr) 
-    out = .C("rbf_kernel", param=param, xrow=as.integer(xr), yrow=as.integer(yr), 
-    column=as.integer(c), mat_x=mx, mat_y=my, mat_res=rv, mat_prod=rv, mat_kernel=rv)
-    out$mat_prod = matrix(out$mat_prod, nrow = xr, ncol = yr, byrow = T)
-    out$mat_res = matrix(out$mat_res, nrow = xr, ncol = yr, byrow = T)
-    out$mat_kernel = matrix(out$mat_kernel, nrow = xr, ncol = yr, byrow = T)
+    rv_train = rep(0, xr*xr)
+    rv_test = rep(0, xr*yr)
+ 
+    out = .C("run", param=param, xrow=as.integer(xr), yrow=as.integer(yr), 
+             column=as.integer(c), mat_x=mx, mat_y=my, matmul_train=rv_train, 
+             prod_train=rv_train, kernel_train=rv_train, chol_train=rv_train)
+    
+    out$matmul_train = matrix(out$matmul_train, nrow = xr, ncol = xr, byrow = T)
+    out$prod_train = matrix(out$prod_train, nrow = xr, ncol = xr, byrow = T)
+    out$kernel_train = matrix(out$kernel_train, nrow = xr, ncol = xr, byrow = T)
+    out$chol_train = matrix(out$chol_train, nrow = xr, ncol = xr, byrow = T)
     return(out)
     }
 
