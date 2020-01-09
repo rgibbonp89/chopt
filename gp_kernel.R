@@ -12,8 +12,11 @@ mat_x = mvrnorm(nrx, c(rep(0, nc)), diag(nc))
 set.seed(10)
 mat_y = mvrnorm(nry, c(rep(0, nc)), diag(nc))
 
+betas = rnorm(nc)
+y = mat_x%*%c(betas)
 
-f <- function(mx, my, param){
+
+f <- function(mx, my, y, param){
     xr = nrow(mx)
     yr = nrow(my)
     c = ncol(mx)
@@ -23,9 +26,15 @@ f <- function(mx, my, param){
     if(length(my) > 1){
     my <- c(t(my))
     }
+    if(length(y) > 1){
+    y <- c(t(y))
+    }
+
     rv_train = rep(0, xr*xr)
     rv_traintest = rep(0, xr*yr)
     rv_test = rep(0, yr*yr)
+    mu_out = rep(0, yr)
+    vcov_out = rep(0, yr*yr)
  
     out = .C("run", param=param, xrow=as.integer(xr), yrow=as.integer(yr), 
              column=as.integer(c), mat_x=mx, mat_y=my, 
@@ -37,7 +46,10 @@ f <- function(mx, my, param){
 	     kernel_traintest=rv_traintest,
              matmul_test=rv_test,
              prod_test=rv_test,
-             kernel_test=rv_test)
+             kernel_test=rv_test,
+             y_in=y,
+             mu_out=mu_out,
+             vcov_out=vcov_out)
 
     # reassign for output    
     out$matmul_train = matrix(out$matmul_train, nrow = xr, ncol = xr, byrow = T)
@@ -51,21 +63,19 @@ f <- function(mx, my, param){
     out$matmul_test = matrix(out$matmul_test, nrow = yr, ncol = yr, byrow = T)
     out$prod_test = matrix(out$prod_test, nrow = yr, ncol = yr, byrow = T)
     out$kernel_test = matrix(out$kernel_test, nrow = yr, ncol = yr, byrow = T)
+    
+    out$mu_out = matrix(out$mu_out, nrow = yr, ncol = 1, byrow = T)
+    out$vcov_out = matrix(out$vcov_out, nrow = yr, ncol = yr, byrow = T)
 
     return(out)
     }
 
-start_time <- Sys.time()
-out = f(mat_x, mat_y, 1.0)
-end_time <- Sys.time()
-end_time - start_time
+out = f(mat_x, mat_y, y, 1.0)
 
-start_time <- Sys.time()
-test <- mat_x%*%t(mat_y)
-end_time <- Sys.time()
-end_time - start_time
+# mus match exactly!
+K_inv = solve(out$kernel_train)
+K_s = out$kernel_traintest
+K_ss = out$kernel_test
 
-
-
-y = matrix(c(-0.23, -.21, 1.2, -0.23, 1.87, 0.3), nrow =2,  byrow=T)
-x = matrix(c(0.01, 0.05, 0.12, 0.32, 1.20, -2.1), nrow = 2, byrow=T)
+mu = (t(K_s)%*%K_inv)%*%y
+vcov = K_ss - (t(K_s)%*%K_inv)%*%K_s

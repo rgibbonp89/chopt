@@ -1,3 +1,12 @@
+/*
+
+RBF KERNEL FOR HYPERARAMETER TUNING
+
+Designed to integrate with R through the .C function, this routine will calculate a mu vector and variance covariance matrix
+for unseen hyperparameter combinations.
+
+*/
+
 #include <stdio.h>
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_matrix.h>
@@ -6,6 +15,22 @@
 #include <gsl/gsl_blas.h>
 #include <math.h>
 
+/*
+@param_in = tuning parameter for RBF Kernel
+@xrow = number of rows in xmatrix
+@yrow = number of rows in ymatrix
+@col = number of columns in both matrices (has to be the same in both, obviously)
+@input_matrix_x = x matrix (training set)
+@input_matrix_y = y matrix (test set)
+@matmul_matrix_train, @product_matrix_train = (xrow, xrow) blank matrix to store intermediate results during matrix operations
+@kernel_matrix_train = (xrow, xrow) matrix that will hold output of kernel calculation
+
+Same goes for _traintest and _test
+
+@y_vector = (xrow,) vector of train targets
+@mu_vector = (yrow,) length vector of outputted mu estimates
+@vcov_matrix_out = (yrow, yrow) estimated variance covariance matrix
+*/
 
 int run(double *param_in, int *xrow, int *yrow, int *col,
         double *input_matrix_x, double *input_matrix_y,
@@ -17,14 +42,19 @@ int run(double *param_in, int *xrow, int *yrow, int *col,
         double *kernel_matrix_traintest,
         double *matmul_matrix_test,
         double *product_matrix_test,
-        double *kernel_matrix_test
+        double *kernel_matrix_test,
+        double *y_vector,
+        double *mu_vector_out,
+        double *vcov_matrix_out
         )
 {
+    // Allocate matrices for storing output
     size_t xr = xrow[0];
     size_t yr = yrow[0];
     gsl_matrix * Ktrain = gsl_matrix_calloc(xr, xr);
     gsl_matrix * Ktraintest = gsl_matrix_calloc(xr, yr);
     gsl_matrix * Ktest = gsl_matrix_calloc(yr, yr);
+    gsl_matrix * Kinv = gsl_matrix_calloc(xr, xr);
 
     // Pass pointers themselves as arguments to rbf_kernel()
     rbf_kernel(param_in, xrow, xrow, col, input_matrix_x,
@@ -39,26 +69,88 @@ int run(double *param_in, int *xrow, int *yrow, int *col,
 
     // Assign to matrices
     matrix_assign_GSL(xrow, xrow, kernel_matrix_train, Ktrain);
+    matrix_assign_GSL(xrow, xrow, kernel_matrix_train, Kinv);
     matrix_assign_GSL(xrow, yrow, kernel_matrix_traintest, Ktraintest);
     matrix_assign_GSL(yrow, yrow, kernel_matrix_test, Ktest);
 
+    // Calculate Ktrain^{-1}
+    matrix_inverse(Kinv, Kinv, xr);
 
-    // http://krasserm.github.io/2018/03/19/gaussian-processes/
-    /*
+    // Calculate mu vector
+    gsl_matrix * K_traintest_Kinv = gsl_matrix_calloc(yr, xr);
+    gsl_matrix * y_vector_in = gsl_matrix_calloc(xr, 1);
+    gsl_matrix * mu_vector = gsl_matrix_calloc(yr, 1);
 
-    K = kernel(X_train, X_train, l, sigma_f) + sigma_y**2 * np.eye(len(X_train))
-    K_s = kernel(X_train, X_s, l, sigma_f)
-    K_ss = kernel(X_s, X_s, l, sigma_f) + 1e-8 * np.eye(len(X_s))
-    K_inv = inv(K)
+    int i=0;
+    for(i=0;i<xr;i++)
+    {
+        gsl_matrix_set(y_vector_in, i, 0, y_vector[i]);
+    }
 
-    # Equation (4)
-    mu_s = K_s.T.dot(K_inv).dot(Y_train)
+    gsl_blas_dgemm(CblasTrans, CblasNoTrans,
+                  1.0, Ktraintest, Kinv,
+                  0.0, K_traintest_Kinv);
 
-    # Equation (5)
-    cov_s = K_ss - K_s.T.dot(K_inv).dot(K_s)
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans,
+                  1.0, K_traintest_Kinv, y_vector_in,
+                  0.0, mu_vector);
 
-    */
+    int j=0;
+    for(j=0;j<yr;j++)
+    {
+        mu_vector_out[j] = gsl_matrix_get(mu_vector, j, 0);
+    }
+
+
+    // Calculate covariance matrix
+    gsl_matrix * vcovmatrix_holder = gsl_matrix_calloc(yr, yr);
+
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans,
+                  1.0, K_traintest_Kinv, Ktraintest,
+                  0.0, vcovmatrix_holder);
+
+    gsl_matrix_sub(Ktest, vcovmatrix_holder);
+
+    int k=0;
+    int l=0;
+    int vcov_counter=0;
+
+    for(k=0;k<yr;k++)
+        for(l=0;l<yr;l++)
+    {
+        vcov_matrix_out[vcov_counter++] = gsl_matrix_get(Ktest, k, l);
+    }
+
 }
+
+/*
+Perform matrix inversion for a given square matrix
+
+@A = matrix to be inverted
+@A_inverse = blank matrix to write inversion to
+@N = nrows of matrix
+
+*/
+
+int matrix_inverse(gsl_matrix *A, gsl_matrix *A_inverse, int N)
+{
+
+    int signum = 0;
+    gsl_permutation *p = gsl_permutation_alloc(N);
+    gsl_linalg_LU_decomp(A, p, &signum);
+    gsl_linalg_LU_invert(A, p, A_inverse);
+
+}
+
+/*
+Assign arbitrary vector to GSL matrix
+
+@xrow = number of rows in new matrix
+@yrow = number of columns in new vector
+@K_input_matrix = data vector to be transformed to GSL matrix
+@write_matrix = GSL matrix to be overwritten
+
+*/
 
 int matrix_assign_GSL(int *xrow, int *yrow,
            double *K_input_matrix, gsl_matrix *write_matrix)
@@ -78,12 +170,17 @@ int matrix_assign_GSL(int *xrow, int *yrow,
 
 
 /*
-@xrow = count of the number of rows of the input matrix x
-@yrow = count of the number of rows of the input matrix y
-@col = count of the number of columns of the inout matrices
-@input_matrix_x = input_matrix of type double
-@input_matrix_y = input_matrix of type double
-@results_matrix = vector of zeros that the function will write to and that will be output
+Perform RBF kernel calculation on two matrices (x,y)
+
+
+@param_in = tuning parameter for RBF Kernel
+@xrow = number of rows in xmatrix
+@yrow = number of rows in ymatrix
+@col = number of columns in both matrices (has to be the same in both, obviously)
+@input_matrix_x = x matrix (training set)
+@input_matrix_y = y matrix (test set)
+@matmul_matrix, @product_matrix = (xrow, xrow) blank matrix to store intermediate results during matrix operations
+@kernel_matrix = (xrow, xrow) matrix that will hold output of kernel calculation
 */
 
 int rbf_kernel(double *param_in, int *xrow, int *yrow,
