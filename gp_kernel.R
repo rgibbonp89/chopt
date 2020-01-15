@@ -70,23 +70,7 @@ f <- function(mx, my, y, param){
     return(list(mu = out$mu_out, vcov = out$vcov_out))
     }
 
-# Validation of above on IRIS data
-all_data = subset(iris, Species == 'virginica' | Species == 'versicolor')
 
-# TVT split
-trainIndex <- createDataPartition(all_data$Species, p = .8,
-                                  list = FALSE,
-                                  times = 1)
-
-train_set <- all_data[trainIndex,]
-val_test <- all_data[-trainIndex,]
-
-valIndex <- createDataPartition(val_test$Species, p = .5,
-                                  list = FALSE,
-                                  times = 1)
-
-val_set <- val_test[valIndex,]
-test_set <- val_test[-valIndex,]
 
 #' Fit SVM to training data (only iris for the time being) and predict from validation set
 #' @param train_data training set (including target)
@@ -108,6 +92,19 @@ svm_fit_predict <- function(train_data, validation_data, C, gamma){
 
 
 #' Optimize SVM hyperparameters (IN PROGRESS)
+#' Gamma parameter - polynomial order (essentially for linear decision boundary)
+#' C parameter - penalty for misclassifying
+
+#' @param train training set (including target)
+#' @param validation validation set (iincluding target)
+#' @param C_lower lower bound for C hyperparameter of SVM
+#' @param C_upper upper bound for C hyperparameter of SVM
+#' @param C_num number of candidates to try for C hyperparameter of SVM
+#' @param gamma_lower lower bound for gamma hyperparameter of SVM
+#' @param gamma_upper upper bound for gamma hyperparameter of SVM
+#' @param gamma_num number of candidates to try for gamma hyperparameter of SVM
+#' @param warmups number of warmup steps to run
+#' @param iterations total number of iterations to run
 optimize_params_svm <- function(train, validation, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, warmups=5, iterations = 5){
 
 
@@ -150,7 +147,33 @@ optimize_params_svm <- function(train, validation, C_lower, C_upper, C_num, gamm
 
 }
 
+#' Expected improvement for set of candidate hyperparameters
+#' @param gp_res output from C function Gaussian Process
+#' @param best best hyperparameter score so far
+expected_improvement <- function(gp_res, best){
+    diff <- best - gp_res$mu
+    sigma <- diag(gp_res$vcov)
+    return(diff*dnorm(diff/sigma, 0, 1) + sigma*pnorm(diff/sigma, 0, 1))
+}
 
+
+
+###########################
+# Running a simple example
+###########################
+
+
+# Validation of above on IRIS data
+all_data = subset(iris, Species == 'virginica' | Species == 'versicolor')
+
+# TVT split
+trainIndex <- createDataPartition(all_data$Species, p = .7,
+                                  list = FALSE,
+                                  times = 1)
+train_set <- all_data[trainIndex,]
+val_test <- all_data[-trainIndex,]
+
+# Specify hyperparameter ranges
 C_lower <- 1e-4
 C_upper <- 10
 C_num <- 20
@@ -159,12 +182,8 @@ gamma_lower <- 1e-4
 gamma_upper <- 10
 gamma_num <- 20
 
+# Run the algorithm
+next_move <- optimize_params_svm(train_set, val_test, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, iterations=30)
 
-next_move <- optimize_params_svm(train_set, val_test, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, iterations=20)
 
 
-expected_improvement <- function(gp_res, best){
-    diff <- best - gp_res$mu
-    sigma <- diag(gp_res$vcov)
-    return(diff*dnorm(diff/sigma, 0, 1) + sigma*pnorm(diff/sigma, 0, 1))
-}
