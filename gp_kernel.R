@@ -3,7 +3,7 @@ library('pracma')
 library('e1071')
 library('caret')
 library('mixtools')
-
+library('mlbench')
 
 # Load compiled C
 dyn.load("kernel_rbf.so")
@@ -81,12 +81,12 @@ svm_fit_predict <- function(train_data, validation_data, C, gamma){
 
    # At this stage, just use simple performance metric to validate
 
-    model <- svm(Species ~ ., data=train_data, gamma=gamma, cost=C)
-    validation_x <- subset(validation_data, select=-Species)
-    validation_y <- subset(validation_data, select=Species)
+    model <- svm(diabetes ~ ., data=train_data, gamma=gamma, cost=C)
+    validation_x <- subset(validation_data, select=-diabetes)
+    validation_y <- subset(validation_data, select=diabetes)
     predictions <- predict(model, validation_x)
 
-    return(sum(validation_y$Species == predictions)/length(predictions))
+    return(sum(validation_y$diabetes == predictions)/length(predictions))
 }
 
 
@@ -105,7 +105,8 @@ svm_fit_predict <- function(train_data, validation_data, C, gamma){
 #' @param gamma_num number of candidates to try for gamma hyperparameter of SVM
 #' @param warmups number of warmup steps to run
 #' @param iterations total number of iterations to run
-optimize_params_svm <- function(train, validation, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, warmups=5, iterations = 5){
+optimize_params_svm <- function(train, validation, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, warmups=5, iterations = 5,
+                                param=1.0){
 
 
    C_candidates <- sort(runif(C_num, C_lower, C_upper))
@@ -128,19 +129,24 @@ optimize_params_svm <- function(train, validation, C_lower, C_upper, C_num, gamm
    }
    
 
-   out <- f(inputs, C_gamma_combi, score, 10.0)
+   out <- f(inputs, C_gamma_combi, score, param)
    best_ <- score[which.max(score),]
    next_move_cands <- expected_improvement(out, best_)
    
    for(iter in 1:iterations){
    
+   print(paste("Trying next hyperparameter combination"))
+   print(C_gamma_combi[which.max(next_move_cands),])
    cg_tmp <- C_gamma_combi[which.max(next_move_cands),]
    acc_tmp <- svm_fit_predict(train, validation, cg_tmp$C_candidates, cg_tmp$gamma_candidates)
    inputs <- rbind(inputs, cg_tmp)
    score <- rbind(score, acc_tmp)
    best_ <- score[which.max(score),]   
-   out <- f(inputs, C_gamma_combi, score, 10.0)
+   out <- f(inputs, C_gamma_combi, score, param)
    next_move_cands <- expected_improvement(out, best_)
+   if((max(best_ - out$mu)) < 0){
+   print("Stopping early")
+   break}
    }
 
    return(list(scores=score, inputs=inputs))
@@ -163,27 +169,31 @@ expected_improvement <- function(gp_res, best){
 ###########################
 
 
-# Validation of above on IRIS data
-all_data = subset(iris, Species == 'virginica' | Species == 'versicolor')
+# Validation of above on PimIndianDiabetes data
+data(PimaIndiansDiabetes)
 
 # TVT split
-trainIndex <- createDataPartition(all_data$Species, p = .7,
+trainIndex <- createDataPartition(PimaIndiansDiabetes$diabetes, p = .8,
                                   list = FALSE,
                                   times = 1)
-train_set <- all_data[trainIndex,]
-val_test <- all_data[-trainIndex,]
+train_set <- PimaIndiansDiabetes[trainIndex,]
+val_test <- PimaIndiansDiabetes[-trainIndex,]
 
 # Specify hyperparameter ranges
-C_lower <- 1e-4
-C_upper <- 10
-C_num <- 20
+C_lower <- 1e-2
+C_upper <- 1e2
+C_num <- 30
 
-gamma_lower <- 1e-4
-gamma_upper <- 10
-gamma_num <- 20
+gamma_lower <- 1e-2
+gamma_upper <- 1e1
+gamma_num <- 30
 
 # Run the algorithm
-next_move <- optimize_params_svm(train_set, val_test, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, iterations=30)
+next_move <- optimize_params_svm(train_set, val_test, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, iterations=40)
+print(next_move$scores)
+print(next_move$inputs)
+
+
 
 
 
