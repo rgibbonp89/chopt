@@ -1,22 +1,20 @@
-# for matrix stuff
-
 library('MASS')
 library('pracma')
+library('e1071')
+library('caret')
+library('mixtools')
 
+
+# Load compiled C
 dyn.load("kernel_rbf.so")
-nrx = 10
-nry = 20 
-nc = 5
-set.seed(10)
-mat_x = mvrnorm(nrx, c(rep(0, nc)), diag(nc))
-set.seed(10)
-mat_y = mvrnorm(nry, c(rep(0, nc)), diag(nc))
 
-betas = rnorm(nc)
-y = mat_x%*%c(betas)
-
-
+# Computes mu and vcov matrix for given test set
+#' @param mx training set (without y)
+#' @param my test set (without y)
+#' @param y test set y
 f <- function(mx, my, y, param){
+
+    # Calculate dimensions
     xr = nrow(mx)
     yr = nrow(my)
     c = ncol(mx)
@@ -30,12 +28,14 @@ f <- function(mx, my, y, param){
     y <- c(t(y))
     }
 
+    # Flatten matrices to vectors
     rv_train = rep(0, xr*xr)
     rv_traintest = rep(0, xr*yr)
     rv_test = rep(0, yr*yr)
     mu_out = rep(0, yr)
     vcov_out = rep(0, yr*yr)
  
+    # Run main C function - annotation can be found in .c file itself
     out = .C("run", param=param, xrow=as.integer(xr), yrow=as.integer(yr), 
              column=as.integer(c), mat_x=mx, mat_y=my, 
              matmul_train=rv_train, 
@@ -67,15 +67,104 @@ f <- function(mx, my, y, param){
     out$mu_out = matrix(out$mu_out, nrow = yr, ncol = 1, byrow = T)
     out$vcov_out = matrix(out$vcov_out, nrow = yr, ncol = yr, byrow = T)
 
-    return(out)
+    return(list(mu = out$mu_out, vcov = out$vcov_out))
     }
 
-out = f(mat_x, mat_y, y, 1.0)
+# Validation of above on IRIS data
+all_data = subset(iris, Species == 'virginica' | Species == 'versicolor')
 
-# mus match exactly!
-K_inv = solve(out$kernel_train)
-K_s = out$kernel_traintest
-K_ss = out$kernel_test
+# TVT split
+trainIndex <- createDataPartition(all_data$Species, p = .8,
+                                  list = FALSE,
+                                  times = 1)
 
-mu = (t(K_s)%*%K_inv)%*%y
-vcov = K_ss - (t(K_s)%*%K_inv)%*%K_s
+train_set <- all_data[trainIndex,]
+val_test <- all_data[-trainIndex,]
+
+valIndex <- createDataPartition(val_test$Species, p = .5,
+                                  list = FALSE,
+                                  times = 1)
+
+val_set <- val_test[valIndex,]
+test_set <- val_test[-valIndex,]
+
+#' Fit SVM to training data (only iris for the time being) and predict from validation set
+#' @param train_data training set (including target)
+#' @param validation_data validation set (iincluding target)
+#' @param C C parameter of SVM
+#' @param gamma gamma parameter of SVM
+svm_fit_predict <- function(train_data, validation_data, C, gamma){
+
+   # At this stage, just use simple performance metric to validate
+
+    model <- svm(Species ~ ., data=train_data, gamma=gamma, cost=C)
+    validation_x <- subset(validation_data, select=-Species)
+    validation_y <- subset(validation_data, select=Species)
+    predictions <- predict(model, validation_x)
+
+    return(sum(validation_y$Species == predictions)/length(predictions))
+}
+
+
+
+#' Optimize SVM hyperparameters (IN PROGRESS)
+optimize_params_svm <- function(train, validation, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, warmups=5, iterations = 5){
+
+
+   C_candidates <- sort(runif(C_num, C_lower, C_upper))
+   gamma_candidates <- sort(runif(gamma_num, gamma_lower, gamma_upper))
+   C_gamma_combi <- expand.grid(list(C_candidates=C_candidates, gamma_candidates=gamma_candidates))
+
+   # Run warmups (fixed at 5 for now)
+
+   inputs <- c()
+   score <- c()
+   for(warmup in 1:warmups){
+   
+       index <- sample(dim(C_gamma_combi)[1], 1)
+       cg_tmp <- C_gamma_combi[index,]
+       acc_tmp <- svm_fit_predict(train, validation, cg_tmp$C_candidates, cg_tmp$gamma_candidates)
+       inputs <- rbind(inputs, cg_tmp)
+       score <- rbind(score, acc_tmp)
+       C_gamma_combi <- C_gamma_combi[-index,]
+ 
+   }
+   
+
+   out <- f(inputs, C_gamma_combi, score, 10.0)
+   best_ <- score[which.max(score),]
+   next_move_cands <- expected_improvement(out, best_)
+   
+   for(iter in 1:iterations){
+   
+   cg_tmp <- C_gamma_combi[which.max(next_move_cands),]
+   acc_tmp <- svm_fit_predict(train, validation, cg_tmp$C_candidates, cg_tmp$gamma_candidates)
+   inputs <- rbind(inputs, cg_tmp)
+   score <- rbind(score, acc_tmp)
+   best_ <- score[which.max(score),]   
+   out <- f(inputs, C_gamma_combi, score, 10.0)
+   next_move_cands <- expected_improvement(out, best_)
+   }
+
+   return(list(scores=score, inputs=inputs))
+
+}
+
+
+C_lower <- 1e-4
+C_upper <- 10
+C_num <- 20
+
+gamma_lower <- 1e-4
+gamma_upper <- 10
+gamma_num <- 20
+
+
+next_move <- optimize_params_svm(train_set, val_test, C_lower, C_upper, C_num, gamma_lower, gamma_upper, gamma_num, iterations=20)
+
+
+expected_improvement <- function(gp_res, best){
+    diff <- best - gp_res$mu
+    sigma <- diag(gp_res$vcov)
+    return(diff*dnorm(diff/sigma, 0, 1) + sigma*pnorm(diff/sigma, 0, 1))
+}
